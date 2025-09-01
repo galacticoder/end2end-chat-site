@@ -391,30 +391,35 @@ export class WebRTCCallingService {
     }
 
     try {
-      // Check if we're in Electron
-      const isElectron = !!(window as any).electronAPI;
+      // Check if we're in Electron and what APIs are exposed
+      const electronApi = (window as any).electronAPI || null;
+      const edgeApi = (window as any).edgeApi || null;
+      const isElectron = !!electronApi || !!edgeApi;
+      const getScreenSourcesFn = electronApi?.getScreenSources || edgeApi?.getScreenSources || null;
+
       console.log('[Calling] Screen share - isElectron:', isElectron);
-      console.log('[Calling] electronAPI available:', !!(window as any).electronAPI);
-      console.log('[Calling] getScreenSources available:', !!(window as any).electronAPI?.getScreenSources);
-      console.log('[Calling] electronAPI keys:', (window as any).electronAPI ? Object.keys((window as any).electronAPI) : 'none');
+      console.log('[Calling] electronAPI available:', !!electronApi);
+      console.log('[Calling] edgeApi available:', !!edgeApi);
+      console.log('[Calling] getScreenSources available:', !!getScreenSourcesFn);
+      console.log('[Calling] electronAPI keys:', electronApi ? Object.keys(electronApi) : 'none');
 
       // Try to use Electron API if available, with fallback
       if (isElectron) {
         // Check if getScreenSources is available
-        if (!(window as any).electronAPI?.getScreenSources) {
+        if (!getScreenSourcesFn) {
           console.warn('[Calling] getScreenSources not found in electronAPI');
-          console.warn('[Calling] Available electronAPI functions:', Object.keys((window as any).electronAPI || {}));
+          console.warn('[Calling] Available electronAPI functions:', Object.keys(electronApi || {}));
 
           // Test debug function and check actual API availability
-          if ((window as any).electronAPI?.debugElectronAPI) {
-            const debugInfo = (window as any).electronAPI.debugElectronAPI();
+          if (edgeApi?.debugElectronAPI) {
+            const debugInfo = edgeApi.debugElectronAPI();
             console.log('[Calling] Debug info:', debugInfo);
           }
 
           // Check actual API availability in renderer context
-          const hasGetScreenSources = typeof (window as any).electronAPI?.getScreenSources === 'function';
-          const hasTestFunction = typeof (window as any).electronAPI?.testFunction === 'function';
-          const electronAPIKeys = (window as any).electronAPI ? Object.keys((window as any).electronAPI) : [];
+          const hasGetScreenSources = typeof getScreenSourcesFn === 'function';
+          const hasTestFunction = typeof edgeApi?.testFunction === 'function' || typeof electronApi?.testFunction === 'function';
+          const electronAPIKeys = electronApi ? Object.keys(electronApi) : [];
 
           console.log('[Calling] Renderer context API check:', {
             hasGetScreenSources,
@@ -423,10 +428,10 @@ export class WebRTCCallingService {
           });
 
           // Try to manually test the IPC call
-          if ((window as any).electronAPI?.send) {
+          if (electronApi?.send) {
             console.log('[Calling] Attempting manual IPC test...');
             try {
-              (window as any).electronAPI.send('test-screen-sources', {});
+              electronApi.send('test-screen-sources', {});
             } catch (e) {
               console.log('[Calling] Manual IPC test failed:', e);
             }
@@ -437,7 +442,7 @@ export class WebRTCCallingService {
 
           // Try to manually invoke the IPC call as a last resort
           try {
-            if ((window as any).electronAPI?.send) {
+            if (electronApi?.send) {
               console.log('[Calling] Attempting manual IPC call for screen sources');
               // This won't work but will help us debug
             }
@@ -447,11 +452,11 @@ export class WebRTCCallingService {
         }
       }
 
-      if (isElectron && (window as any).electronAPI?.getScreenSources) {
+      if (isElectron && getScreenSourcesFn) {
         try {
           // Use Electron's desktopCapturer API
           console.log('[Calling] Using Electron desktopCapturer API');
-          const sources = await (window as any).electronAPI.getScreenSources();
+          const sources = await getScreenSourcesFn();
           console.log('[Calling] Got screen sources:', sources?.length || 0);
 
           if (!sources || sources.length === 0) {

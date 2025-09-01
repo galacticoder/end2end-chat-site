@@ -61,8 +61,83 @@ export function useFileSender(currentUsername: string, targetUsername: string, u
       });
 
       if (filteredUsers.length === 0) {
-        console.error('[useFileSender] No valid target user with hybrid keys found for:', targetUsername);
-        throw new Error(`No valid recipient found for user: ${targetUsername}`);
+        console.warn('[useFileSender] No hybrid keys for target; attempting Signal Protocol fallback');
+
+        // Signal Protocol fallback: embed small files directly into encrypted message
+        // For larger files, still error out to avoid huge messages
+        const maxInlineBytes = 5 * 1024 * 1024; // 5MB inline limit
+        if (rawBytes.length > maxInlineBytes) {
+          console.error('[useFileSender] File too large for inline Signal message');
+          throw new Error(`No valid recipient found for user: ${targetUsername}`);
+        }
+
+        try {
+          // Ensure we have a libsignal session with the peer
+          const sessionCheck = await (window as any).edgeApi?.hasSession?.({
+            selfUsername: currentUsername,
+            peerUsername: targetUsername,
+            deviceId: 1
+          });
+
+          if (!sessionCheck?.hasSession) {
+            websocketClient.send(JSON.stringify({
+              type: SignalType.LIBSIGNAL_REQUEST_BUNDLE,
+              username: targetUsername
+            }));
+            // Wait briefly for session establishment
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+
+          const b64 = btoa(String.fromCharCode(...rawBytes));
+          const payload = {
+            type: 'file-message',
+            messageId: crypto.randomUUID(),
+            from: currentUsername,
+            to: targetUsername,
+            timestamp: Date.now(),
+            fileName: file.name,
+            fileType: file.type || 'application/octet-stream',
+            fileSize: file.size,
+            // Put base64 in content to be parsed on recipient side
+            content: JSON.stringify({
+              messageId: crypto.randomUUID(),
+              fileName: file.name,
+              fileType: file.type || 'application/octet-stream',
+              fileSize: file.size,
+              dataBase64: b64
+            })
+          };
+
+          const encrypted = await (window as any).edgeApi?.encrypt?.({
+            fromUsername: currentUsername,
+            toUsername: targetUsername,
+            plaintext: JSON.stringify(payload)
+          });
+
+          if (!encrypted?.ciphertextBase64) {
+            throw new Error('Failed to encrypt inline file');
+          }
+
+          websocketClient.send(JSON.stringify({
+            type: SignalType.ENCRYPTED_MESSAGE,
+            to: targetUsername,
+            encryptedPayload: {
+              from: currentUsername,
+              to: targetUsername,
+              content: encrypted.ciphertextBase64,
+              messageId: payload.messageId,
+              type: encrypted.type,
+              sessionId: encrypted.sessionId
+            }
+          }));
+
+          setProgress(1);
+          setIsSendingFile(false);
+          return;
+        } catch (fallbackError) {
+          console.error('[useFileSender] Signal Protocol inline fallback failed:', fallbackError);
+          throw new Error(`No valid recipient found for user: ${targetUsername}`);
+        }
       }
 
       const userKeys = await Promise.all(

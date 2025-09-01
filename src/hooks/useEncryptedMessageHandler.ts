@@ -544,16 +544,22 @@ export function useEncryptedMessageHandler(
           }
 
           // Handle file messages
-          if (payload.type === 'file-message' && payload.fileData) {
+          if (payload.type === 'file-message') {
             // Extract message ID from the payload content since it's encrypted along with the content
             let messageId = payload.messageId;
             let fileName = payload.fileName;
+            let fileType = payload.fileType || 'application/octet-stream';
+            let fileSize = payload.fileSize || 0;
+            let dataBase64: string | null = null;
             
             // Try to parse the content to get the actual message data
             const fileContentData = safeJsonParse(payload.content);
             if (fileContentData && fileContentData.messageId) {
               messageId = fileContentData.messageId;
               fileName = fileContentData.fileName || fileContentData.fileData || payload.fileName;
+              fileType = fileContentData.fileType || fileType;
+              fileSize = fileContentData.fileSize || fileSize;
+              dataBase64 = fileContentData.dataBase64 || null;
               console.log('[EncryptedMessageHandler] Extracted file message ID from content:', messageId);
             } else {
               // Content is not valid JSON or no messageId, use fallback
@@ -561,6 +567,22 @@ export function useEncryptedMessageHandler(
               console.log('[EncryptedMessageHandler] Using fallback file message ID:', messageId);
             }
             
+            // If inline base64 is present, construct a Blob URL for immediate playback/download
+            let contentValue: string = payload.content;
+            if (dataBase64 && typeof dataBase64 === 'string') {
+              try {
+                const binary = atob(dataBase64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                  bytes[i] = binary.charCodeAt(i);
+                }
+                const blob = new Blob([bytes], { type: fileType });
+                contentValue = URL.createObjectURL(blob);
+              } catch (e) {
+                console.warn('[EncryptedMessageHandler] Failed to decode inline base64 file data:', e);
+              }
+            }
+
             // Check if message already exists to prevent duplicates
             let messageExists = false;
             setMessages(prev => {
@@ -572,7 +594,7 @@ export function useEncryptedMessageHandler(
               
               const message: Message = {
                 id: messageId,
-                content: fileName || 'File',
+                content: contentValue || fileName || 'File',
                 sender: payload.from,  // Use 'sender' to match Message interface
                 recipient: (payload as any)?.to || loginUsernameRef.current,  // Prefer decrypted recipient if present
                 timestamp: new Date(payload.timestamp || Date.now()),  // Convert to Date object
@@ -580,8 +602,8 @@ export function useEncryptedMessageHandler(
                 isCurrentUser: false,  // Received messages are not from current user
                 fileInfo: {
                   name: fileName || 'File',
-                  type: payload.fileType || 'application/octet-stream',
-                  size: payload.fileSize || 0,
+                  type: fileType,
+                  size: fileSize,
                   data: new ArrayBuffer(0)  // SECURITY: Zero-length buffer to prevent memory leaks
                 }
               };
@@ -593,7 +615,7 @@ export function useEncryptedMessageHandler(
               // Save to database (this will also add to state)
               await saveMessageToLocalDB({
                 id: messageId,
-                content: fileName || 'File',
+                content: contentValue || fileName || 'File',
                 sender: payload.from,
                 recipient: (payload as any)?.to || loginUsernameRef.current,
                 timestamp: new Date(payload.timestamp || Date.now()),
@@ -601,8 +623,8 @@ export function useEncryptedMessageHandler(
                 isCurrentUser: false,
                 fileInfo: {
                   name: fileName || 'File',
-                  type: payload.fileType || 'application/octet-stream',
-                  size: payload.fileSize || 0,
+                  type: fileType,
+                  size: fileSize,
                   data: new ArrayBuffer(0)  // SECURITY: Zero-length buffer to prevent memory leaks
                 }
               });
