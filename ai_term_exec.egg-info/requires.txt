@@ -1,0 +1,5 @@
+typer>=0.12.3
+prompt_toolkit>=3.0.47
+requests>=2.31.0
+pynput>=1.7.6
+PyYAML>=6.0.1

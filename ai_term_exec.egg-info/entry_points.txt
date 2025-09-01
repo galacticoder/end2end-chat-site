@@ -1,0 +1,2 @@
+[console_scripts]
+ai-term-exec = ai_term_exec.cli:app

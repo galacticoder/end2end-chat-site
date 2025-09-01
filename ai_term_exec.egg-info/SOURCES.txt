@@ -1,0 +1,16 @@
+LICENSE
+README.md
+pyproject.toml
+ai_term_exec/__init__.py
+ai_term_exec/cli.py
+ai_term_exec/config.py
+ai_term_exec/exec.py
+ai_term_exec/hotkey_daemon.py
+ai_term_exec/model.py
+ai_term_exec/tui.py
+ai_term_exec.egg-info/PKG-INFO
+ai_term_exec.egg-info/SOURCES.txt
+ai_term_exec.egg-info/dependency_links.txt
+ai_term_exec.egg-info/entry_points.txt
+ai_term_exec.egg-info/requires.txt
+ai_term_exec.egg-info/top_level.txt
