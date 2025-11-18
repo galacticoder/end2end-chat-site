@@ -117,4 +117,4 @@ This is not a metadata‑free system. The service retains the minimal routing da
 All goals/to-dos are in the [issues tab](https://github.com/galacticoder/end2end-chat-site/issues). I am a solo developer working on making the safest app for users looking for an app where privacy and security truly matters for every small detail leaving their device. I plan on adding more user features and making huge ui improvements on my next update.
 
 ## License
-[![AGPLv3 License](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![GPLv3 License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
